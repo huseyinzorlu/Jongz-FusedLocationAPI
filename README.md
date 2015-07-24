@@ -150,12 +150,14 @@ public class SampleService extends Service implements OnLocationUpdate {
 ```android
 public class SampleReceiver extends BroadcastReceiver {
 
-    private SampleApp app = SampleApp.getInstance();
+    private final String TAG = this.getClass().getSimpleName();
 
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent.getAction().matches(LocationManager.PROVIDERS_CHANGED_ACTION)) {
-            app.getLocationManager().isLocationServiceCanUse();
+            Log.e(TAG, "onReceive was call because location providers have changes");
+            FusedLocationManager manager = new FusedLocationManager(context);
+            manager.isLocationServiceCanUse();
         }
     }
 }
