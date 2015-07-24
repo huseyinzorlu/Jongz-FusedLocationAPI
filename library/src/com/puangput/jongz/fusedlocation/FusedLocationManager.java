@@ -24,20 +24,20 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
 
     private final String TAG = getClass().getSimpleName();
 
+    public static final String LOCATION_FIX_SCREEN = "location_fix_screen";
+    public static final String IS_CLOSE = "is_close";
+
     private static final int MAX_RETRY = 3;
     private static final int RETRY_DELAY = 20 * 1000;
     private static final long REQUEST_INTERVAL = 5 * 60 * 1000;
     private static final long REQUEST_FAST_INTERVAL = 5 * 60 * 1000;
     private static final float REQUEST_DISTANCE = 100;
-    public static final String LOCATION_FIX_SCREEN = "location_fix_screen";
-    public static final String IS_CLOSE = "is_close";
 
+    private int requestRetry = 0;
     private boolean isConnected = false;
     private boolean isConnecting = false;
     private boolean isRequestRetrying = false;
     private boolean isGetLastLocationWaitConnection = false;
-    private int requestRetry = 0;
-
     private Context context;
     private GoogleApiClient googleApiClient;
     private LocationRequest locationRequest;
@@ -57,6 +57,10 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         configureAPI();
     }
 
+    /**
+     * Configure API
+     * Calling this method to let's library configure its location spec
+     * */
     private void configureAPI() {
         // setup google API client
         googleApiClient = new GoogleApiClient.Builder(context)
@@ -75,10 +79,18 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         locationRequest.setSmallestDisplacement(REQUEST_DISTANCE);
     }
 
+    /**
+     * Check Location Service
+     * Calling this method to check user's phone requirement is prompt to use this services
+     * */
     public synchronized boolean isLocationServiceCanUse() {
         return  (checkPlayServices() && checkLocationSettings());
     }
 
+    /**
+     * Check Google Play Services
+     * Calling this method to check and popup fix dialog, if possible
+     * */
     private boolean checkPlayServices() {
         int resultCode = GooglePlayServicesUtil.isGooglePlayServicesAvailable(context);
         if (resultCode != ConnectionResult.SUCCESS) {
@@ -95,6 +107,10 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         return true;
     }
 
+    /**
+     * Check Location Settings
+     * Calling this method to check a location settings
+     * */
     private boolean checkLocationSettings() {
         LocationManager locationServices = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
         boolean isGPSEnabled = locationServices.isProviderEnabled(LocationManager.GPS_PROVIDER);
@@ -106,6 +122,10 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         return isLocationAccuracy;
     }
 
+    /**
+     * Fix Location Settings
+     * Calling this method to popup a location settings dialog
+     * */
     private void showLocationSettings() {
 
         LocationSettingsRequest locationSettingsRequest = new LocationSettingsRequest.Builder()
@@ -183,6 +203,10 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         }
     }
 
+    /**
+     * Get Last Location
+     * Calling this method to get user last update location
+     * */
     public void getLastLocation(OnLocationResponse l) {
 
         this.onLocationResponse = l;
@@ -200,6 +224,10 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         }
     }
 
+    /**
+     * Request data from google api
+     * Handler the delay of getting the location from api
+     * */
     private void fetchLocationData() {
 
         Location loc = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
@@ -249,12 +277,21 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
      * */
     public void stopUsingGPS(){
         if(googleApiClient != null){
-            LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
-            googleApiClient.disconnect();
-            clearFlag();
+            try {
+                LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
+            } catch (IllegalStateException e) {
+                e.printStackTrace();
+            } finally {
+                googleApiClient.disconnect();
+                clearFlag();
+            }
         }
     }
 
+    /**
+     * Clear Flag
+     * Calling this function will clear all flag in this class
+     * */
     private void clearFlag() {
         // case : while request waiting service was stop unexpected or user call stopUsingGPS()
         if (isGetLastLocationWaitConnection) {
@@ -270,6 +307,10 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         isGetLastLocationWaitConnection = false;
     }
 
+    /**
+     * On Location Update
+     * An interface to receive location update from google api
+     * */
     public void setOnLocationUpdateListener(OnLocationUpdate l) {
         onLocationUpdate = l;
     }

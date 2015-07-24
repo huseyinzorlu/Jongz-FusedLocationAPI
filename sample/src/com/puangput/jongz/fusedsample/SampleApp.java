@@ -24,7 +24,6 @@ public class SampleApp extends Application {
     public FusedLocationManager getLocationManager() {
         if (manager == null) {
             manager = new FusedLocationManager(this);
-            manager.startUsingGPS();
         }
         return manager;
     }

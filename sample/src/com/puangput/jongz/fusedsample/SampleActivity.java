@@ -57,7 +57,8 @@ public class SampleActivity extends Activity implements View.OnClickListener{
 
             @Override
             public void LocationResponseFailure(String error) {
-
+                Log.e(TAG, error);
+                loadingDialog.dismiss();
             }
         });
     }
