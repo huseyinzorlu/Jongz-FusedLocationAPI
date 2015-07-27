@@ -1,7 +1,5 @@
 # Jongz-FusedLocationAPI
 
----
-
 #### BASIC USEFUL FEATURE LIST
 
  * Support usage in Activity, Application (Singleton) and Service class
