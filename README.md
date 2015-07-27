@@ -67,13 +67,12 @@ public class SampleApp extends Application {
     public FusedLocationManager getLocationManager() {
         if (manager == null) {
             manager = new FusedLocationManager.Builder(this)
-        .setRequestInterval(30 * 1000)
-        .setRequestFastInterval(30 * 1000)
-        .setRequestDistance(100)
-        .setMaxRetry(3)
-        .setRetryTimeout(20 * 1000)
-        .build();
-
+        			.setRequestInterval(30 * 1000)
+        			.setRequestFastInterval(30 * 1000)
+        			.setRequestDistance(100)
+        			.setMaxRetry(3)
+        			.setRetryTimeout(20 * 1000)
+        			.build();
         }
         return manager;
     }
@@ -164,7 +163,7 @@ public class SampleReceiver extends BroadcastReceiver {
         if (intent.getAction().matches(LocationManager.PROVIDERS_CHANGED_ACTION)) {
             Log.e(TAG, "onReceive was call because location providers have changes");
             FusedLocationManager manager = new FusedLocationManager.Builder(context).build();
-manager.isLocationServiceCanUse();
+		 manager.isLocationServiceCanUse();
         }
     }
 }
