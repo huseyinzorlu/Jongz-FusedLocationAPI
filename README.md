@@ -1,6 +1,6 @@
 # Jongz-FusedLocationAPI
-Sattha Puangput edited this page on July 27 . v 0.2.0
-- - -
+
+---
 
 #### BASIC USEFUL FEATURE LIST
 
