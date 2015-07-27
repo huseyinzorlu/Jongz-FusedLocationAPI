@@ -1,22 +1,20 @@
 # Jongz-FusedLocationAPI
 
-Sattha Puangput edited this page on July 27 . v 0.2.0
+BASIC USEFUL FEATURE LIST
 
-***
+ * support usage in Activity, Application (Singleton) and Service class
+ * support use case for BroadcastReceiver to check location providers changed
+ * Handle fix for google play services and location settings not ready
+ * Just one click to enable location permission like google map
 
-#### BASIC USEFUL FEATURE LIST
-
- * Support usage in Activity, Application (Singleton) and Service class
- * Support use case W/BroadcastReceiver to check location providers changed
- * Handle fix for google play services and location settings not prompt
- * One click to enable location permission like google map
-
-#### ADD DEPENDENCY
+ADD DEPENDENCY
 
 * Add Google-Play-Services-lib
 * Add Jongz-FusedLocationAPI library
 
-#### SETUP MANIFEST 
+
+
+SETUP MANIFEST 
 
 * Add Permission
 
@@ -46,11 +44,11 @@ Sattha Puangput edited this page on July 27 . v 0.2.0
 </activity>
 ```
 
-#### BASIC USAGE EXAMPLE ....
+BASIC USAGE EXAMPLE ....
 
-* Singleton for all activity:
+### Singleton for all activity:
 
-```java
+```android
 public class SampleApp extends Application {
 
     private static SampleApp app;
@@ -81,9 +79,9 @@ public class SampleApp extends Application {
 }
 ```
 
-* Get Last Location:
+### Get Last Location:
 
-```java
+```android
 public class SampleActivity extends Activity implements View.OnClickListener{
 
     private final String TAG = getClass().getSimpleName();
@@ -128,9 +126,9 @@ public class SampleActivity extends Activity implements View.OnClickListener{
 }
 ```
 
-* Use Service for keep track location update:
+### Use Service for keep track location update:
 
-```java
+```android
 public class SampleService extends Service implements OnLocationUpdate {
 
     private final String TAG = getClass().getSimpleName();
@@ -140,12 +138,12 @@ public class SampleService extends Service implements OnLocationUpdate {
         super.onCreate();
         Log.e(TAG, "onCreate()");
         FusedLocationManager manager = new FusedLocationManager.Builder(this)
-                  .setRequestInterval(30 * 1000)
-                  .setRequestFastInterval(30 * 1000)
-                  .setIsRequestDistance(false)  // this ignore RequestDistance
-                  .setMaxRetry(3)
-                  .setRetryTimeout(20 * 1000)
-                  .build();
+.setRequestInterval(30 * 1000)
+.setRequestFastInterval(30 * 1000)
+.setIsRequestDistance(false)  // this ignore RequestDistance
+.setMaxRetry(3)
+.setRetryTimeout(20 * 1000)
+.build();
         manager.setOnLocationUpdateListener(this);
         manager.isLocationServiceCanUse();
     }
@@ -159,9 +157,9 @@ public class SampleService extends Service implements OnLocationUpdate {
 }
 ```
 
-* Keep Monitor Location Providers:
+### Keep Monitor Location Providers:
 
-```java
+```android
 public class SampleReceiver extends BroadcastReceiver {
 
     private final String TAG = this.getClass().getSimpleName();
