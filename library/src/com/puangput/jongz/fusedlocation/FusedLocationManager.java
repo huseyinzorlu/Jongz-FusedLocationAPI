@@ -31,6 +31,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
     private final long REQUEST_INTERVAL;
     private final long REQUEST_FAST_INTERVAL;
     private final float REQUEST_DISTANCE;
+    private final boolean IS_REQUEST_DISTANCE;
 
     private int requestRetry = 0;
     private boolean isConnected = false;
@@ -58,6 +59,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         this.REQUEST_INTERVAL = builder.requestInterval;
         this.REQUEST_FAST_INTERVAL = builder.requestFastInterval;
         this.REQUEST_DISTANCE = builder.requestDistance;
+        this.IS_REQUEST_DISTANCE = builder.isRequestDistance;
         configureAPI();
     }
 
@@ -69,6 +71,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         private long requestInterval = 30 * 60 * 1000; // 30 min.
         private long requestFastInterval = 30 * 60 * 1000; // 30 min.
         private float requestDistance = 500; // 500 m.
+        private boolean isRequestDistance = true;
 
         public Builder(Context context) {
             this.context = context;
@@ -102,6 +105,11 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         public FusedLocationManager build() {
             return new FusedLocationManager(this);
         }
+
+        public Builder setIsRequestDistance(boolean b) {
+            this.isRequestDistance = b;
+            return this;
+        }
     }
 
     /**
@@ -123,7 +131,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
         locationRequest.setInterval(REQUEST_INTERVAL);
         locationRequest.setFastestInterval(REQUEST_FAST_INTERVAL);
-//        locationRequest.setSmallestDisplacement(REQUEST_DISTANCE);
+        if (IS_REQUEST_DISTANCE) locationRequest.setSmallestDisplacement(REQUEST_DISTANCE);
     }
 
     /**

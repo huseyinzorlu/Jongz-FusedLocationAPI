@@ -30,7 +30,7 @@ public class SampleService extends Service implements OnLocationUpdate {
         FusedLocationManager manager = new FusedLocationManager.Builder(this)
                 .setRequestInterval(30 * 1000)
                 .setRequestFastInterval(30 * 1000)
-                .setRequestDistance(100)
+                .setIsRequestDistance(false)  // this ignore RequestDistance
                 .setMaxRetry(3)
                 .setRetryTimeout(20 * 1000)
                 .build();
