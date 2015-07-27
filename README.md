@@ -161,9 +161,9 @@ public class SampleReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent.getAction().matches(LocationManager.PROVIDERS_CHANGED_ACTION)) {
-            Log.e(TAG, "onReceive was call because location providers have changes");
-            FusedLocationManager manager = new FusedLocationManager.Builder(context).build();
-		 manager.isLocationServiceCanUse();
+			Log.e(TAG, "onReceive was call because location providers have changes");
+			FusedLocationManager manager = new FusedLocationManager.Builder(context).build();
+			manager.isLocationServiceCanUse();
         }
     }
 }
