@@ -2,7 +2,6 @@ package com.puangput.jongz.fusedlocation;
 
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
@@ -27,11 +26,11 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
     public static final String LOCATION_FIX_SCREEN = "location_fix_screen";
     public static final String IS_CLOSE = "is_close";
 
-    private static final int MAX_RETRY = 3;
-    private static final int RETRY_DELAY = 20 * 1000;
-    private static final long REQUEST_INTERVAL = 5 * 60 * 1000;
-    private static final long REQUEST_FAST_INTERVAL = 5 * 60 * 1000;
-    private static final float REQUEST_DISTANCE = 100;
+    private final int MAX_RETRY;
+    private final long RETRY_TIMEOUT;
+    private final long REQUEST_INTERVAL;
+    private final long REQUEST_FAST_INTERVAL;
+    private final float REQUEST_DISTANCE;
 
     private int requestRetry = 0;
     private boolean isConnected = false;
@@ -52,9 +51,57 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         }
     };
 
-    public FusedLocationManager(Context context) {
-        this.context = context;
+    public FusedLocationManager(Builder builder) {
+        this.context = builder.context;
+        this.MAX_RETRY = builder.maxRetry;
+        this.RETRY_TIMEOUT = builder.retryTimeOut;
+        this.REQUEST_INTERVAL = builder.requestInterval;
+        this.REQUEST_FAST_INTERVAL = builder.requestFastInterval;
+        this.REQUEST_DISTANCE = builder.requestDistance;
         configureAPI();
+    }
+
+    public static class  Builder {
+
+        private Context context;
+        private int maxRetry = 3;
+        private long retryTimeOut = 20 * 1000; // 20 sec.
+        private long requestInterval = 30 * 60 * 1000; // 30 min.
+        private long requestFastInterval = 30 * 60 * 1000; // 30 min.
+        private float requestDistance = 500; // 500 m.
+
+        public Builder(Context context) {
+            this.context = context;
+        }
+
+        public Builder setRequestInterval(long milliSec) {
+            this.requestInterval = milliSec;
+            return this;
+        }
+
+        public Builder setRequestFastInterval(long milliSec) {
+            this.requestFastInterval = milliSec;
+            return this;
+        }
+
+        public Builder setRequestDistance(int m) {
+            this.requestDistance = m;
+            return this;
+        }
+
+        public Builder setRetryTimeout(long milliSec) {
+            this.retryTimeOut = milliSec;
+            return this;
+        }
+
+        public Builder setMaxRetry(int times) {
+            this.maxRetry = times;
+            return this;
+        }
+
+        public FusedLocationManager build() {
+            return new FusedLocationManager(this);
+        }
     }
 
     /**
@@ -73,10 +120,10 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
 
         // setup location request criteria
         locationRequest = new LocationRequest();
-        locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY );
+        locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
         locationRequest.setInterval(REQUEST_INTERVAL);
         locationRequest.setFastestInterval(REQUEST_FAST_INTERVAL);
-        locationRequest.setSmallestDisplacement(REQUEST_DISTANCE);
+//        locationRequest.setSmallestDisplacement(REQUEST_DISTANCE);
     }
 
     /**
@@ -236,7 +283,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
             if (isLocationServiceCanUse()) {
                 if (requestRetry != MAX_RETRY) {
                     isRequestRetrying = true;
-                    handler.postDelayed(runnableFetchLocation, RETRY_DELAY);
+                    handler.postDelayed(runnableFetchLocation, RETRY_TIMEOUT);
                     ++requestRetry;
                 } else {
                     isRequestRetrying = false;

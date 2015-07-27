@@ -27,7 +27,13 @@ public class SampleService extends Service implements OnLocationUpdate {
     public void onCreate() {
         super.onCreate();
         Log.e(TAG, "onCreate()");
-        FusedLocationManager manager = new FusedLocationManager(this);
+        FusedLocationManager manager = new FusedLocationManager.Builder(this)
+                .setRequestInterval(30 * 1000)
+                .setRequestFastInterval(30 * 1000)
+                .setRequestDistance(100)
+                .setMaxRetry(3)
+                .setRetryTimeout(20 * 1000)
+                .build();
         manager.setOnLocationUpdateListener(this);
         manager.isLocationServiceCanUse();
     }

@@ -51,7 +51,7 @@ public class FixLocationPermissionActivity extends Activity {
         }
     }
 
-    private void doCheckPlayServices(int resultCode) {
+    private void doCheckPlayServices(final int resultCode) {
         Dialog dialog = GooglePlayServicesUtil.getErrorDialog(resultCode, this, RESULT_PLAY_SERVICES);
         dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
         dialog.setCancelable(false);

@@ -23,7 +23,13 @@ public class SampleApp extends Application {
 
     public FusedLocationManager getLocationManager() {
         if (manager == null) {
-            manager = new FusedLocationManager(this);
+            manager = new FusedLocationManager.Builder(this)
+                    .setRequestInterval(30 * 1000)
+                    .setRequestFastInterval(30 * 1000)
+                    .setRequestDistance(100)
+                    .setMaxRetry(3)
+                    .setRetryTimeout(20 * 1000)
+                    .build();
         }
         return manager;
     }
