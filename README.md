@@ -1,8 +1,8 @@
-# Jongz-FusedLocationAPI
+### Jongz-FusedLocationAPI
 
 Sattha Puangput edited this page on July 27 . v 0.2.0
 
-***
+- - -
 
 #### BASIC USEFUL FEATURE LIST
 
@@ -159,7 +159,7 @@ public class SampleService extends Service implements OnLocationUpdate {
 }
 ```
 
-* Keep Monitor Location Providers:
+* Keep Monitor Location Providers W/BroadcastReceiver:
 
 ```java
 public class SampleReceiver extends BroadcastReceiver {
@@ -174,5 +174,5 @@ public class SampleReceiver extends BroadcastReceiver {
 			manager.isLocationServiceCanUse();
         }
     }
-} 
+}
 ```
