@@ -66,7 +66,14 @@ public class SampleApp extends Application {
 
     public FusedLocationManager getLocationManager() {
         if (manager == null) {
-            manager = new FusedLocationManager(this);
+            manager = new FusedLocationManager.Builder(this)
+        .setRequestInterval(30 * 1000)
+        .setRequestFastInterval(30 * 1000)
+        .setRequestDistance(100)
+        .setMaxRetry(3)
+        .setRetryTimeout(20 * 1000)
+        .build();
+
         }
         return manager;
     }
@@ -131,7 +138,7 @@ public class SampleService extends Service implements OnLocationUpdate {
     public void onCreate() {
         super.onCreate();
         Log.e(TAG, "onCreate()");
-        FusedLocationManager manager = new FusedLocationManager(this);
+        FusedLocationManager manager = new FusedLocationManager.Builder(this)
         manager.setOnLocationUpdateListener(this);
         manager.isLocationServiceCanUse();
     }
@@ -156,8 +163,8 @@ public class SampleReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (intent.getAction().matches(LocationManager.PROVIDERS_CHANGED_ACTION)) {
             Log.e(TAG, "onReceive was call because location providers have changes");
-            FusedLocationManager manager = new FusedLocationManager(context);
-            manager.isLocationServiceCanUse();
+            FusedLocationManager manager = new FusedLocationManager.Builder(context).build();
+manager.isLocationServiceCanUse();
         }
     }
 }
