@@ -2,10 +2,11 @@
 
 #### BASIC USEFUL FEATURE LIST
 
- * Support usage in Activity, Application (Singleton) and Service class
- * Support use case W/BroadcastReceiver to check location providers changed
- * Handle fix for google play services and location settings not prompt
- * One click to enable location permission like google map
+ * Support usage in Activity, Application (Singleton) and Service class.
+ * Support use case W/BroadcastReceiver to check location providers changed.
+ * Handle fix for google play services and location settings not prompt.
+ * One click to enable location permission like google map.
+ * Lean and lite google-play-services.jar to prevent dex overflow 56k methods.
 
 #### ADD DEPENDENCY
 
