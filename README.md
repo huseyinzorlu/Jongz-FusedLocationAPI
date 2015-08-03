@@ -173,3 +173,15 @@ public class SampleReceiver extends BroadcastReceiver {
     }
 }
 ```
+* DON'T Forget to Define Receiver in Android Manifest:
+
+```xml
+<receiver
+	android:name=".SampleReceiver"
+	android:enabled="true"
+	android:exported="false">
+	<intent-filter>
+		<action android:name="android.location.PROVIDERS_CHANGED"/>
+	</intent-filter>
+</receiver>
+```
