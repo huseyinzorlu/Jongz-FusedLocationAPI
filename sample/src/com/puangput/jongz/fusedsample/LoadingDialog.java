@@ -1,5 +1,6 @@
 package com.puangput.jongz.fusedsample;
 
+import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.os.Handler;
@@ -10,12 +11,12 @@ import android.os.Looper;
  */
 public class LoadingDialog {
 
-    private final Context context;
+    private final Activity activity;
     private ProgressDialog progressDialog;
     private Handler handler = new Handler(Looper.getMainLooper());
 
-    public LoadingDialog(Context context) {
-        this.context = context;
+    public LoadingDialog(Activity activity) {
+        this.activity = activity;
     }
 
     public void show(String message) {
@@ -23,7 +24,7 @@ public class LoadingDialog {
             @Override
             public void run() {
                 if (progressDialog == null || !progressDialog.isShowing()) {
-                    progressDialog = ProgressDialog.show(context, "", message);
+                    progressDialog = ProgressDialog.show(activity, "", message);
                     progressDialog.show();
                 }
             }
@@ -36,12 +37,11 @@ public class LoadingDialog {
             @Override
             public void run() {
                 if (progressDialog == null || !progressDialog.isShowing()) {
-                    progressDialog = ProgressDialog.show(context, "", "กรุณารอสักครู่");
+                    progressDialog = ProgressDialog.show(activity, "", "กรุณารอสักครู่");
                     progressDialog.show();
                 }
             }
         });
-
     }
 
 

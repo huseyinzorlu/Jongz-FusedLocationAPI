@@ -28,14 +28,14 @@ public class SampleService extends Service implements OnLocationUpdate {
         super.onCreate();
         Log.e(TAG, "onCreate()");
         FusedLocationManager manager = new FusedLocationManager.Builder(this)
-                .setRequestInterval(30 * 1000)
-                .setRequestFastInterval(30 * 1000)
-                .setIsRequestDistance(false)  // this ignore RequestDistance
+                .setRequestInterval(30 * 60 * 1000)
+                .setRequestFastInterval(60 * 1000)
+                .setIsRequestDistance(true)  // this ignore RequestDistance
                 .setMaxRetry(3)
                 .setRetryTimeout(20 * 1000)
                 .build();
         manager.setOnLocationUpdateListener(this);
-        manager.isLocationServiceCanUse();
+        manager.start();
     }
 
     @Override

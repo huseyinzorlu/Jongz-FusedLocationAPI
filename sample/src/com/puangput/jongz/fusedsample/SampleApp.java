@@ -21,7 +21,7 @@ public class SampleApp extends Application {
         app = this;
     }
 
-    public FusedLocationManager getLocationManager() {
+    public FusedLocationManager gps() {
         if (manager == null) {
             manager = new FusedLocationManager.Builder(this)
                     .setRequestInterval(30 * 1000)
@@ -29,6 +29,7 @@ public class SampleApp extends Application {
                     .setRequestDistance(100)
                     .setMaxRetry(3)
                     .setRetryTimeout(20 * 1000)
+                    .setExpiredTime(1 * 60 *1000)
                     .build();
         }
         return manager;

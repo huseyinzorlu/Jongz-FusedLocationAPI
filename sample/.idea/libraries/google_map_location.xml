@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="google-map-location">
-    <CLASSES>
-      <root url="jar://$PROJECT_DIR$/../library/libs/google-map-location.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>

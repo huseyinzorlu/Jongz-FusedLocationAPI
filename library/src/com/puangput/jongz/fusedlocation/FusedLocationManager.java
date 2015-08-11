@@ -2,11 +2,13 @@ package com.puangput.jongz.fusedlocation;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.widget.Toast;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
@@ -15,6 +17,9 @@ import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.*;
+import com.google.gson.Gson;
+
+import java.lang.ref.WeakReference;
 
 /**
  * Created by Sattha Puangput on 7/23/2015.
@@ -23,15 +28,19 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
 
     private final String TAG = getClass().getSimpleName();
 
-    public static final String LOCATION_FIX_SCREEN = "location_fix_screen";
-    public static final String IS_CLOSE = "is_close";
+    private static final String SHARED_PREF_LOCATION_STAMP = "shared_pref_location_stamp";
+    private static final String LOCATION_LATITUDE = "location_stamp";
+    private static final String LOCATION_LONGITUDE = "location_longitude";
+    private static final String LOCATION_LAST_TIME = "location_last_time";
+    private static final String LOCATION_OBJECT = "location_object";
 
+    private final boolean IS_REQUEST_DISTANCE;
     private final int MAX_RETRY;
+    private final int EXPIRED_TIME;
     private final long RETRY_TIMEOUT;
     private final long REQUEST_INTERVAL;
     private final long REQUEST_FAST_INTERVAL;
     private final float REQUEST_DISTANCE;
-    private final boolean IS_REQUEST_DISTANCE;
 
     private int requestRetry = 0;
     private boolean isConnected = false;
@@ -60,10 +69,10 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         this.REQUEST_FAST_INTERVAL = builder.requestFastInterval;
         this.REQUEST_DISTANCE = builder.requestDistance;
         this.IS_REQUEST_DISTANCE = builder.isRequestDistance;
-        configureAPI();
+        this.EXPIRED_TIME = builder.expiredTime;
     }
 
-    public static class  Builder {
+    public static class Builder {
 
         private Context context;
         private int maxRetry = 3;
@@ -72,6 +81,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         private long requestFastInterval = 30 * 60 * 1000; // 30 min.
         private float requestDistance = 500; // 500 m.
         private boolean isRequestDistance = true;
+        private int expiredTime = 0; // 1 min
 
         public Builder(Context context) {
             this.context = context;
@@ -102,14 +112,30 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
             return this;
         }
 
-        public FusedLocationManager build() {
-            return new FusedLocationManager(this);
-        }
-
         public Builder setIsRequestDistance(boolean b) {
             this.isRequestDistance = b;
             return this;
         }
+
+        public Builder setExpiredTime(int milliSec) {
+            this.expiredTime = milliSec;
+            return this;
+        }
+
+        public FusedLocationManager build() {
+            return new FusedLocationManager(this);
+        }
+    }
+
+    /**
+     * Check Location Provider
+     * Calling this static method to check location service provider.
+     * For BroadcastReceiver use case, which kill object after intent
+     * finish their job no stop() required.
+     * */
+    public static void checkLocationProvider(Context context){
+        FusedLocationManager m = new FusedLocationManager.Builder(context).build();
+        m.start(); m.isLocationProviderCanUse();
     }
 
     /**
@@ -138,7 +164,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
      * Check Location Service
      * Calling this method to check user's phone requirement is prompt to use this services
      * */
-    public synchronized boolean isLocationServiceCanUse() {
+    private synchronized boolean isLocationProviderCanUse() {
         return  (checkPlayServices() && checkLocationSettings());
     }
 
@@ -170,11 +196,8 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         LocationManager locationServices = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
         boolean isGPSEnabled = locationServices.isProviderEnabled(LocationManager.GPS_PROVIDER);
         boolean isNetworkEnabled = locationServices.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
-        boolean isLocationAccuracy = (isGPSEnabled && isNetworkEnabled);
-        if (!isLocationAccuracy) {
-            showLocationSettings();
-        }
-        return isLocationAccuracy;
+        showLocationSettings();
+        return (isGPSEnabled || isNetworkEnabled);
     }
 
     /**
@@ -222,7 +245,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
     public void onConnected(Bundle bundle) {
         isConnected = true;
         isConnecting = false;
-        isLocationServiceCanUse();
+        isLocationProviderCanUse();
         LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
         // case : getLastLocation() was call before onConnected was trigger
         if (isGetLastLocationWaitConnection) {
@@ -245,6 +268,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
 
     @Override
     public void onLocationChanged(Location location) {
+        saveTempLatLng(location);
         // sent to onLocationUpdateListener.
         if (onLocationUpdate != null) onLocationUpdate.locationUpdate(location);
         // if retry from get last location update result to caller.
@@ -274,8 +298,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
 
         } else {
             if (onLocationResponse != null)
-                onLocationResponse.LocationResponseFailure("Location service not start() yet !");
-
+                onLocationResponse.LocationResponseFailure("FusedLocationManager instance is not call start() yet !");
         }
     }
 
@@ -288,16 +311,23 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         Location loc = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
 
         if (loc == null) {
-            if (isLocationServiceCanUse()) {
-                if (requestRetry != MAX_RETRY) {
-                    isRequestRetrying = true;
-                    handler.postDelayed(runnableFetchLocation, RETRY_TIMEOUT);
-                    ++requestRetry;
+            if (isLocationProviderCanUse()) {
+                if (isLocationTempExpired()) {
+                    if (requestRetry != MAX_RETRY) {
+                        isRequestRetrying = true;
+                        handler.postDelayed(runnableFetchLocation, RETRY_TIMEOUT);
+                        ++requestRetry;
+                    } else {
+                        isRequestRetrying = false;
+                        requestRetry = 0;
+                        if (onLocationResponse != null) {
+                            onLocationResponse.LocationResponseFailure("Error request timeout : " + MAX_RETRY);
+                        }
+                    }
                 } else {
-                    isRequestRetrying = false;
-                    requestRetry = 0;
                     if (onLocationResponse != null) {
-                        onLocationResponse.LocationResponseFailure("Error request timeout : " + MAX_RETRY);
+                        Toast.makeText(context, "Location From Temp", Toast.LENGTH_SHORT).show();
+                        onLocationResponse.LocationResponseSuccess(getTempLocation());
                     }
                 }
             } else {
@@ -309,6 +339,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
             requestRetry = 0;
             if (onLocationResponse != null) {
                 onLocationResponse.LocationResponseSuccess(loc);
+                saveTempLatLng(loc);
             }
         }
     }
@@ -317,12 +348,9 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
      * Star using GPS listener
      * Calling this function will start using GPS in your app
      * */
-    public void startUsingGPS(){
+    public void start(){
         if (!isConnected && !isConnecting) {
-            if(googleApiClient != null){
-                isConnecting = true;
-                googleApiClient.connect();
-            }
+            configureAPI();
         }
     }
 
@@ -330,7 +358,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
      * Stop using GPS listener
      * Calling this function will stop using GPS in your app
      * */
-    public void stopUsingGPS(){
+    public void stop(){
         if(googleApiClient != null){
             try {
                 LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
@@ -338,9 +366,11 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
                 e.printStackTrace();
             } finally {
                 googleApiClient.disconnect();
-                clearFlag();
+                googleApiClient = null;
+                locationRequest = null;
             }
         }
+        clearFlag();
     }
 
     /**
@@ -348,7 +378,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
      * Calling this function will clear all flag in this class
      * */
     private void clearFlag() {
-        // case : while request waiting service was stop unexpected or user call stopUsingGPS()
+        // case : while request waiting service was stop unexpected or user call stop()
         if (isGetLastLocationWaitConnection) {
             if (onLocationResponse != null) {
                 handler.removeCallbacks(runnableFetchLocation);
@@ -368,6 +398,65 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
      * */
     public void setOnLocationUpdateListener(OnLocationUpdate l) {
         onLocationUpdate = l;
+    }
+
+    /**
+     * Save Temp Latitude and Longitude
+     * A method which save current location and timestamp for later use.
+     * */
+    private void saveTempLatLng(Location loc) {
+        Gson gson = new Gson();
+        String locJson = gson.toJson(loc);
+        SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = pref.edit();
+        editor.putLong(LOCATION_LATITUDE, Double.doubleToRawLongBits(loc.getLatitude())).apply();
+        editor.putLong(LOCATION_LONGITUDE, Double.doubleToRawLongBits(loc.getLongitude())).apply();
+        editor.putString(LOCATION_OBJECT, locJson).apply();
+        editor.putLong(LOCATION_LAST_TIME, SystemClock.elapsedRealtime()).apply();
+    }
+
+    /**
+     * Is Location Temp Expired
+     * A method which check your last location temp is still usable.
+     * set expiredTime() to 0 for disable use of temp location (default)
+     * */
+    public boolean isLocationTempExpired() {
+        SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
+        long lastTime = pref.getLong(LOCATION_LAST_TIME, -1);
+        return (((SystemClock.elapsedRealtime() - lastTime) > EXPIRED_TIME) || lastTime == -1);
+    }
+
+    /**
+     * Get Temp Location
+     * A method retrieve temp. location data
+     * */
+    public Location getTempLocation() {
+        SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
+        Gson gson = new Gson();
+        String json = pref.getString(LOCATION_OBJECT, "");
+        if (!json.equals("")) {
+            return gson.fromJson(json, Location.class);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Get Temp Latitude
+     * A method retrieve temp. latitude data
+     * */
+    public double getTempLatitude() {
+        SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
+        return Double.longBitsToDouble(pref.getLong(LOCATION_LATITUDE, 0));
+    }
+
+    /**
+     * Get Temp Longitude
+     * A method retrieve temp. longitude data
+     * */
+    public double getTempLongitude() {
+        SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
+        return Double.longBitsToDouble(pref.getLong(LOCATION_LONGITUDE, 0));
     }
 
 }

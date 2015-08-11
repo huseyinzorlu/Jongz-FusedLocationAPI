@@ -83,14 +83,6 @@ public class FixLocationPermissionActivity extends Activity {
     }
 
     @Override
-    protected void onDestroy() {
-        SharedPreferences pref = getSharedPreferences(FusedLocationManager.LOCATION_FIX_SCREEN, Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = pref.edit();
-        editor.putBoolean(FusedLocationManager.IS_CLOSE, true).apply();
-        super.onDestroy();
-    }
-
-    @Override
     public void onBackPressed() {
         if (isCanFinish) super.onBackPressed();
     }
