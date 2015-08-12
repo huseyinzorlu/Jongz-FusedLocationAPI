@@ -13,17 +13,19 @@ import com.puangput.jongz.fusedlocationapi.R;
 
 
 public class FixLocationPermissionActivity extends Activity {
+
     public static final String CHECK_PLAY_SERVICES = "check_play_services";
     public static final String CHECK_LOCATION_SERVICES = "check_location_services";
-    private static final int RESULT_LOCATION_SERVICE = 1000;
+    private static final int RESULT_LOCATION_PROVIDERS_SETTING = 1000;
     private static final int RESULT_PLAY_SERVICES = 2000;
+
     private Status mStatus;
     private boolean isCanFinish = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        overridePendingTransition(0,0);
+        overridePendingTransition(0, 0);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.fixfusedlocation);
         Intent i = getIntent();
@@ -45,7 +47,7 @@ public class FixLocationPermissionActivity extends Activity {
         try {
             // Show the dialog by calling startResolutionForResult(),
             // and check the result in onActivityResult().
-            status.startResolutionForResult(this, RESULT_LOCATION_SERVICE);
+            status.startResolutionForResult(this, RESULT_LOCATION_PROVIDERS_SETTING);
         } catch (IntentSender.SendIntentException e) {
             e.printStackTrace();
         }
@@ -66,7 +68,7 @@ public class FixLocationPermissionActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == RESULT_LOCATION_SERVICE) {
+        if (requestCode == RESULT_LOCATION_PROVIDERS_SETTING) {
             switch (resultCode) {
                 case Activity.RESULT_OK:
                     // TODO

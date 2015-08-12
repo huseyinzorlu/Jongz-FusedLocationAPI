@@ -46,15 +46,15 @@ public class SampleActivity extends Activity implements View.OnClickListener{
 
         loadingDialog.show();
 
-        app.gps().start();
-        app.gps().getLastLocation(new OnLocationResponse() {
+        app.getFLM().start();
+        app.getFLM().getLastLocation(new OnLocationResponse() {
             @Override
             public void LocationResponseSuccess(Location loc) {
                 Log.i(TAG, "Latitude=" + loc.getLatitude() + ", " + "Longitude=" + loc.getLongitude() + ", " + loc.getProvider() + ", onClick()");
                 Toast.makeText(getApplicationContext(), "Latitude=" + loc.getLatitude() + ", " + "Longitude=" + loc.getLongitude() + ", " + loc.getProvider() + ", onClick()", Toast.LENGTH_SHORT).show();
                 onReceiveLocation(loc, "OnClick()");
                 loadingDialog.dismiss();
-                app.gps().stop();
+                app.getFLM().stop();
             }
 
             @Override
@@ -62,7 +62,7 @@ public class SampleActivity extends Activity implements View.OnClickListener{
                 Log.e(TAG, error);
                 Toast.makeText(getApplicationContext(), error, Toast.LENGTH_SHORT).show();
                 loadingDialog.dismiss();
-                app.gps().stop();
+                app.getFLM().stop();
             }
         });
     }

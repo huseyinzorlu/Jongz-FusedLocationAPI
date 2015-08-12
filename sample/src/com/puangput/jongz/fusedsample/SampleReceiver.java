@@ -18,7 +18,10 @@ public class SampleReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (intent.getAction().matches(LocationManager.PROVIDERS_CHANGED_ACTION)) {
             Log.e(TAG, "onReceive was call because location providers have changes");
-            FusedLocationManager.checkLocationProvider(context);
+            // start your service and call checkLocationProviderPrompt()
+            // for start fix dialog, if provide change is not meet
+            // fused location api requirement.
+            context.startService(new Intent(context, SampleService.class));
         }
     }
 }

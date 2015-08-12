@@ -21,15 +21,11 @@ public class SampleApp extends Application {
         app = this;
     }
 
-    public FusedLocationManager gps() {
+    public FusedLocationManager getFLM() {
         if (manager == null) {
             manager = new FusedLocationManager.Builder(this)
-                    .setRequestInterval(30 * 1000)
-                    .setRequestFastInterval(30 * 1000)
-                    .setRequestDistance(100)
-                    .setMaxRetry(3)
-                    .setRetryTimeout(20 * 1000)
-                    .setExpiredTime(1 * 60 *1000)
+                    .setIsRequestDistance(false) // not use distance update
+                    .setCachedExpiredTime(15 * 1000) // set zero value to disable cached location
                     .build();
         }
         return manager;

@@ -19,18 +19,15 @@ import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.*;
 import com.google.gson.Gson;
 
-import java.lang.ref.WeakReference;
-
 /**
  * Created by Sattha Puangput on 7/23/2015.
  */
-public class FusedLocationManager implements  GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
+public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener, LocationListener {
 
     private final String TAG = getClass().getSimpleName();
 
     private static final String SHARED_PREF_LOCATION_STAMP = "shared_pref_location_stamp";
-    private static final String LOCATION_LATITUDE = "location_stamp";
-    private static final String LOCATION_LONGITUDE = "location_longitude";
     private static final String LOCATION_LAST_TIME = "location_last_time";
     private static final String LOCATION_OBJECT = "location_object";
 
@@ -46,7 +43,6 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
     private boolean isConnected = false;
     private boolean isConnecting = false;
     private boolean isRequestRetrying = false;
-    private boolean isGetLastLocationWaitConnection = false;
     private Context context;
     private GoogleApiClient googleApiClient;
     private LocationRequest locationRequest;
@@ -117,7 +113,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
             return this;
         }
 
-        public Builder setExpiredTime(int milliSec) {
+        public Builder setCachedExpiredTime(int milliSec) {
             this.expiredTime = milliSec;
             return this;
         }
@@ -128,14 +124,40 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
     }
 
     /**
-     * Check Location Provider
-     * Calling this static method to check location service provider.
-     * For BroadcastReceiver use case, which kill object after intent
-     * finish their job no stop() required.
+     * Is Connect
+     * Calling this function for check this instance was call start() or not.
      * */
-    public static void checkLocationProvider(Context context){
-        FusedLocationManager m = new FusedLocationManager.Builder(context).build();
-        m.start(); m.isLocationProviderCanUse();
+    public boolean isConnect() {
+        return (isConnected || isConnecting);
+    }
+
+    /**
+     * Start using GPS listener
+     * Calling this function will start using GPS in your app
+     * */
+    public void start(){
+        if (!isConnected && !isConnecting) {
+            configureAPI();
+        }
+    }
+
+    /**
+     * Stop using GPS listener
+     * Calling this function will stop using GPS in your app
+     * */
+    public void stop(){
+        if(googleApiClient != null){
+            try {
+                LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
+            } catch (IllegalStateException e) {
+                e.printStackTrace();
+            } finally {
+                googleApiClient.disconnect();
+                googleApiClient = null;
+                locationRequest = null;
+            }
+        }
+        clearFlag();
     }
 
     /**
@@ -163,8 +185,11 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
     /**
      * Check Location Service
      * Calling this method to check user's phone requirement is prompt to use this services
+     *
+     * Note : this methods return result from current system settings, but fixing activity
+     *        won't be launch if start() method was not called.
      * */
-    private synchronized boolean isLocationProviderCanUse() {
+    public synchronized boolean checkLocationProviderPrompt() {
         return  (checkPlayServices() && checkLocationSettings());
     }
 
@@ -225,6 +250,13 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
                         // requests here.
                         break;
                     case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
+
+                        // if retry from get last location, update result to caller.
+                        if (isRequestRetrying) {
+                            isRequestRetrying = false;
+                            updateResultToCaller(false, null, "Location settings are not satisfied.");
+                        }
+
                         // Location settings are not satisfied. But could be fixed by showing the user
                         // a dialog.
                         Intent i = new Intent(context, FixLocationPermissionActivity.class);
@@ -245,13 +277,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
     public void onConnected(Bundle bundle) {
         isConnected = true;
         isConnecting = false;
-        isLocationProviderCanUse();
         LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
-        // case : getLastLocation() was call before onConnected was trigger
-        if (isGetLastLocationWaitConnection) {
-            isGetLastLocationWaitConnection = false;
-            fetchLocationData();
-        }
     }
 
     @Override
@@ -268,18 +294,25 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
 
     @Override
     public void onLocationChanged(Location location) {
-        saveTempLatLng(location);
+        saveCachedLocation(location);
         // sent to onLocationUpdateListener.
         if (onLocationUpdate != null) onLocationUpdate.locationUpdate(location);
-        // if retry from get last location update result to caller.
+
+        // if retry from get last location, update result to caller.
         // cancel runnable stop waiting result.
         // coz, onLocationChanged might trigger first after location permission allow.
         if (isRequestRetrying) {
             isRequestRetrying = false;
-            handler.removeCallbacks(runnableFetchLocation);
-            if (onLocationResponse != null)
-                onLocationResponse.LocationResponseSuccess(location);
+            updateResultToCaller(true, location, null);
         }
+    }
+
+    /**
+     * On Location Update
+     * An interface to receive location update from google api
+     * */
+    public void setOnLocationUpdateListener(OnLocationUpdate l) {
+        onLocationUpdate = l;
     }
 
     /**
@@ -290,12 +323,8 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
 
         this.onLocationResponse = l;
 
-        if (isConnected && !isConnecting) {
+        if (isConnected || isConnecting) {
             fetchLocationData();
-
-        } else if (!isConnected && isConnecting) {
-            isGetLastLocationWaitConnection = true;
-
         } else {
             if (onLocationResponse != null)
                 onLocationResponse.LocationResponseFailure("FusedLocationManager instance is not call start() yet !");
@@ -311,116 +340,64 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
         Location loc = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
 
         if (loc == null) {
-            if (isLocationProviderCanUse()) {
-                if (isLocationTempExpired()) {
-                    if (requestRetry != MAX_RETRY) {
-                        isRequestRetrying = true;
-                        handler.postDelayed(runnableFetchLocation, RETRY_TIMEOUT);
-                        ++requestRetry;
-                    } else {
-                        isRequestRetrying = false;
-                        requestRetry = 0;
-                        if (onLocationResponse != null) {
-                            onLocationResponse.LocationResponseFailure("Error request timeout : " + MAX_RETRY);
-                        }
-                    }
+            if (isCachedLocationExpired()) {
+                checkLocationProviderPrompt();
+                if (requestRetry != MAX_RETRY) {
+                    isRequestRetrying = true;
+                    handler.postDelayed(runnableFetchLocation, RETRY_TIMEOUT);
+                    ++requestRetry;
                 } else {
+                    isRequestRetrying = false;
+                    requestRetry = 0;
                     if (onLocationResponse != null) {
-                        Toast.makeText(context, "Location From Temp", Toast.LENGTH_SHORT).show();
-                        onLocationResponse.LocationResponseSuccess(getTempLocation());
+                        onLocationResponse.LocationResponseFailure("Error location request timeout : " + MAX_RETRY);
                     }
                 }
             } else {
                 if (onLocationResponse != null) {
-                    onLocationResponse.LocationResponseFailure("Location service settings not meet requirement.");
+                    Toast.makeText(context, "From Temp. Location ", Toast.LENGTH_SHORT).show();
+                    onLocationResponse.LocationResponseSuccess(getCachedLocation());
                 }
             }
         } else {
-            requestRetry = 0;
+            saveCachedLocation(loc);
             if (onLocationResponse != null) {
                 onLocationResponse.LocationResponseSuccess(loc);
-                saveTempLatLng(loc);
             }
         }
     }
 
-    /**
-     * Star using GPS listener
-     * Calling this function will start using GPS in your app
-     * */
-    public void start(){
-        if (!isConnected && !isConnecting) {
-            configureAPI();
+    private void updateResultToCaller(boolean isSuccess, Location loc, String msg) {
+        if (isSuccess) {
+            handler.removeCallbacks(runnableFetchLocation);
+            if (onLocationResponse != null)
+                onLocationResponse.LocationResponseSuccess(loc);
+        } else {
+            handler.removeCallbacks(runnableFetchLocation);
+            if (onLocationResponse != null)
+                onLocationResponse.LocationResponseFailure(msg);
         }
-    }
-
-    /**
-     * Stop using GPS listener
-     * Calling this function will stop using GPS in your app
-     * */
-    public void stop(){
-        if(googleApiClient != null){
-            try {
-                LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
-            } catch (IllegalStateException e) {
-                e.printStackTrace();
-            } finally {
-                googleApiClient.disconnect();
-                googleApiClient = null;
-                locationRequest = null;
-            }
-        }
-        clearFlag();
-    }
-
-    /**
-     * Clear Flag
-     * Calling this function will clear all flag in this class
-     * */
-    private void clearFlag() {
-        // case : while request waiting service was stop unexpected or user call stop()
-        if (isGetLastLocationWaitConnection) {
-            if (onLocationResponse != null) {
-                handler.removeCallbacks(runnableFetchLocation);
-                onLocationResponse.LocationResponseFailure("Service was stop.");
-            }
-        }
-        // remove all Flags
-        isConnected = false;
-        isConnecting = false;
-        isRequestRetrying = false;
-        isGetLastLocationWaitConnection = false;
-    }
-
-    /**
-     * On Location Update
-     * An interface to receive location update from google api
-     * */
-    public void setOnLocationUpdateListener(OnLocationUpdate l) {
-        onLocationUpdate = l;
     }
 
     /**
      * Save Temp Latitude and Longitude
      * A method which save current location and timestamp for later use.
      * */
-    private void saveTempLatLng(Location loc) {
+    private void saveCachedLocation(Location loc) {
         Gson gson = new Gson();
         String locJson = gson.toJson(loc);
         SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = pref.edit();
-        editor.putLong(LOCATION_LATITUDE, Double.doubleToRawLongBits(loc.getLatitude())).apply();
-        editor.putLong(LOCATION_LONGITUDE, Double.doubleToRawLongBits(loc.getLongitude())).apply();
         editor.putString(LOCATION_OBJECT, locJson).apply();
         editor.putLong(LOCATION_LAST_TIME, SystemClock.elapsedRealtime()).apply();
     }
 
     /**
-     * Is Location Temp Expired
+     * Is Temp Location Expired
      * A method which check your last location temp is still usable.
      * set expiredTime() to 0 for disable use of temp location (default)
      * */
-    public boolean isLocationTempExpired() {
+    public boolean isCachedLocationExpired() {
         SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
         long lastTime = pref.getLong(LOCATION_LAST_TIME, -1);
         return (((SystemClock.elapsedRealtime() - lastTime) > EXPIRED_TIME) || lastTime == -1);
@@ -430,7 +407,7 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
      * Get Temp Location
      * A method retrieve temp. location data
      * */
-    public Location getTempLocation() {
+    public Location getCachedLocation() {
         SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
         Gson gson = new Gson();
         String json = pref.getString(LOCATION_OBJECT, "");
@@ -442,21 +419,21 @@ public class FusedLocationManager implements  GoogleApiClient.ConnectionCallback
     }
 
     /**
-     * Get Temp Latitude
-     * A method retrieve temp. latitude data
+     * Clear Flag
+     * Calling this function will clear all flag in this class
      * */
-    public double getTempLatitude() {
-        SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
-        return Double.longBitsToDouble(pref.getLong(LOCATION_LATITUDE, 0));
-    }
-
-    /**
-     * Get Temp Longitude
-     * A method retrieve temp. longitude data
-     * */
-    public double getTempLongitude() {
-        SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
-        return Double.longBitsToDouble(pref.getLong(LOCATION_LONGITUDE, 0));
+    private void clearFlag() {
+        if (isRequestRetrying) {
+            if (onLocationResponse != null) {
+                handler.removeCallbacks(runnableFetchLocation);
+                onLocationResponse.LocationResponseFailure("Service was stop.");
+            }
+        }
+        // remove all Flags
+        requestRetry = 0;
+        isConnected = false;
+        isConnecting = false;
+        isRequestRetrying = false;
     }
 
 }
