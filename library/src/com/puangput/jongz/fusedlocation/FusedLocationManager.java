@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.util.Log;
 import android.widget.Toast;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
@@ -40,8 +41,6 @@ public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks
     private final float REQUEST_DISTANCE;
 
     private int requestRetry = 0;
-    private boolean isConnected = false;
-    private boolean isConnecting = false;
     private boolean isRequestRetrying = false;
     private Context context;
     private GoogleApiClient googleApiClient;
@@ -66,6 +65,7 @@ public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks
         this.REQUEST_DISTANCE = builder.requestDistance;
         this.IS_REQUEST_DISTANCE = builder.isRequestDistance;
         this.EXPIRED_TIME = builder.expiredTime;
+        configureAPI();
     }
 
     public static class Builder {
@@ -124,43 +124,6 @@ public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks
     }
 
     /**
-     * Is Connect
-     * Calling this function for check this instance was call start() or not.
-     * */
-    public boolean isConnect() {
-        return (isConnected || isConnecting);
-    }
-
-    /**
-     * Start using GPS listener
-     * Calling this function will start using GPS in your app
-     * */
-    public void start(){
-        if (!isConnected && !isConnecting) {
-            configureAPI();
-        }
-    }
-
-    /**
-     * Stop using GPS listener
-     * Calling this function will stop using GPS in your app
-     * */
-    public void stop(){
-        if(googleApiClient != null){
-            try {
-                LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
-            } catch (IllegalStateException e) {
-                e.printStackTrace();
-            } finally {
-                googleApiClient.disconnect();
-                googleApiClient = null;
-                locationRequest = null;
-            }
-        }
-        clearFlag();
-    }
-
-    /**
      * Configure API
      * Calling this method to let's library configure its location spec
      * */
@@ -171,8 +134,6 @@ public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .build();
-        googleApiClient.connect();
-        isConnecting = true;
 
         // setup location request criteria
         locationRequest = new LocationRequest();
@@ -180,6 +141,58 @@ public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks
         locationRequest.setInterval(REQUEST_INTERVAL);
         locationRequest.setFastestInterval(REQUEST_FAST_INTERVAL);
         if (IS_REQUEST_DISTANCE) locationRequest.setSmallestDisplacement(REQUEST_DISTANCE);
+    }
+
+    /**
+     * Is Connect
+     * Calling this function for check this instance was call start() or not.
+     * */
+    public boolean isConnect() {
+        return (googleApiClient.isConnected() || googleApiClient.isConnecting());
+    }
+
+    /**
+     * Start using GPS listener
+     * Calling this function will start using GPS in your app
+     * */
+    public void start(){
+        if (!googleApiClient.isConnected() && !googleApiClient.isConnecting()) {
+            googleApiClient.connect();
+        }
+    }
+
+    /**
+     * Stop using GPS listener
+     * Calling this function will stop using GPS in your app
+     * */
+    public void stop(){
+
+        // disconnect google api
+        try {
+            LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
+        } catch (IllegalStateException e) {
+            e.printStackTrace();
+        } finally {
+            googleApiClient.disconnect();
+        }
+
+        clearFlag();
+    }
+
+    /**
+     * Clear Flag
+     * Calling this function will clear all flag before start() again
+     * */
+    private void clearFlag() {
+        // response back to caller if stop() call while requesting
+        if (isRequestRetrying) {
+            if (onLocationResponse != null) {
+                handler.removeCallbacks(runnableFetchLocation);
+                   onLocationResponse.LocationResponseFailure("Service was stop.");
+            }
+        }
+        requestRetry = 0;
+        isRequestRetrying = false;
     }
 
     /**
@@ -275,8 +288,6 @@ public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks
 
     @Override
     public void onConnected(Bundle bundle) {
-        isConnected = true;
-        isConnecting = false;
         LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
     }
 
@@ -321,9 +332,9 @@ public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks
      * */
     public void getLastLocation(OnLocationResponse l) {
 
-        this.onLocationResponse = l;
+        onLocationResponse = l;
 
-        if (isConnected || isConnecting) {
+        if (googleApiClient.isConnected() || googleApiClient.isConnecting()) {
             fetchLocationData();
         } else {
             if (onLocationResponse != null)
@@ -355,7 +366,7 @@ public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks
                 }
             } else {
                 if (onLocationResponse != null) {
-                    Toast.makeText(context, "From Temp. Location ", Toast.LENGTH_SHORT).show();
+                    Log.e(TAG, "used cached location");
                     onLocationResponse.LocationResponseSuccess(getCachedLocation());
                 }
             }
@@ -380,15 +391,31 @@ public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks
     }
 
     /**
+     * To String
+     * A method which convert Location object to json string
+     * */
+    public String toString(Location loc) {
+        Gson gson = new Gson();
+        return gson.toJson(loc);
+    }
+
+    /**
+     * To Location
+     * A method which convert Json String of Location object object to Location Object
+     * */
+    public Location toLocation(String sLocation) {
+        Gson gson = new Gson();
+        return gson.fromJson(sLocation, Location.class);
+    }
+
+    /**
      * Save Temp Latitude and Longitude
      * A method which save current location and timestamp for later use.
      * */
-    private void saveCachedLocation(Location loc) {
-        Gson gson = new Gson();
-        String locJson = gson.toJson(loc);
+    private synchronized void saveCachedLocation(Location loc) {
         SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = pref.edit();
-        editor.putString(LOCATION_OBJECT, locJson).apply();
+        editor.putString(LOCATION_OBJECT, toString(loc)).apply();
         editor.putLong(LOCATION_LAST_TIME, SystemClock.elapsedRealtime()).apply();
     }
 
@@ -409,31 +436,30 @@ public class FusedLocationManager implements GoogleApiClient.ConnectionCallbacks
      * */
     public Location getCachedLocation() {
         SharedPreferences pref = context.getSharedPreferences(SHARED_PREF_LOCATION_STAMP, Context.MODE_PRIVATE);
-        Gson gson = new Gson();
         String json = pref.getString(LOCATION_OBJECT, "");
         if (!json.equals("")) {
-            return gson.fromJson(json, Location.class);
+            return toLocation(json);
         } else {
             return null;
         }
     }
 
     /**
-     * Clear Flag
-     * Calling this function will clear all flag in this class
+     * Clean Up
+     * Calling this function will clean up all flag in this class
      * */
-    private void clearFlag() {
-        if (isRequestRetrying) {
-            if (onLocationResponse != null) {
-                handler.removeCallbacks(runnableFetchLocation);
-                onLocationResponse.LocationResponseFailure("Service was stop.");
+    public void cleanUp() {
+        if(googleApiClient != null){
+            googleApiClient.unregisterConnectionCallbacks(this);
+            googleApiClient.unregisterConnectionFailedListener(this);
+            if (googleApiClient.isConnecting() || googleApiClient.isConnected()) {
+                googleApiClient.disconnect();
             }
+            googleApiClient = null;
         }
-        // remove all Flags
-        requestRetry = 0;
-        isConnected = false;
-        isConnecting = false;
-        isRequestRetrying = false;
+        if (locationRequest != null) {
+            locationRequest = null;
+        }
     }
 
 }

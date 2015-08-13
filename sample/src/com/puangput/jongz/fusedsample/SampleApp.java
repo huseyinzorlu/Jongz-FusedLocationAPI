@@ -25,7 +25,7 @@ public class SampleApp extends Application {
         if (manager == null) {
             manager = new FusedLocationManager.Builder(this)
                     .setIsRequestDistance(false) // not use distance update
-                    .setCachedExpiredTime(15 * 1000) // set zero value to disable cached location
+                    .setCachedExpiredTime(10 * 1000) // set zero value to disable cached location
                     .build();
         }
         return manager;
