@@ -7,11 +7,13 @@
  * Handle fix for google play services and location settings not prompt.
  * One click to enable location permission like google map.
  * Lean and lite google-play-services.jar to prevent dex overflow 56k methods.
+ * Less power consumption by cache location result.
 
 #### ADD DEPENDENCY
 
 * Add Google-Play-Services-lib
 * Add Jongz-FusedLocationAPI library
+* ADD Gson.jar
 
 #### SETUP MANIFEST 
 
@@ -66,12 +68,9 @@ public class SampleApp extends Application {
     public FusedLocationManager getLocationManager() {
         if (manager == null) {
             manager = new FusedLocationManager.Builder(this)
-        			.setRequestInterval(30 * 1000)
-        			.setRequestFastInterval(30 * 1000)
-        			.setRequestDistance(100)
-        			.setMaxRetry(3)
-        			.setRetryTimeout(20 * 1000)
-        			.build();
+                    .setIsRequestDistance(false) // disable update by distance update
+                    .setCachedExpiredTime(15 * 1000)  // set zero value to disable library use cached location
+                    .build();
         }
         return manager;
     }
@@ -106,19 +105,23 @@ public class SampleActivity extends Activity implements View.OnClickListener{
     public void onClick(View v) {
 
         loadingDialog.show();
-
+        app.getLocationManager().start();
         app.getLocationManager().getLastLocation(new OnLocationResponse() {
             @Override
             public void LocationResponseSuccess(Location loc) {
                 Log.i(TAG, "Longitude: " + loc.getLongitude());
         		Log.i(TAG, "Latitude: " + loc.getLatitude());
                 loadingDialog.dismiss();
+                // After get last location,
+                // call stop() for stop using location and save power consumption.
+                app.getLocationManager().stop(); 
             }
 
             @Override
             public void LocationResponseFailure(String error) {
                 Log.e(TAG, error);
                 loadingDialog.dismiss();
+                app.getLocationManager().stop();
             }
         });
     }
@@ -137,14 +140,28 @@ public class SampleService extends Service implements OnLocationUpdate {
         super.onCreate();
         Log.e(TAG, "onCreate()");
         FusedLocationManager manager = new FusedLocationManager.Builder(this)
-                  .setRequestInterval(30 * 1000)
-                  .setRequestFastInterval(30 * 1000)
-                  .setIsRequestDistance(false)  // this ignore RequestDistance
-                  .setMaxRetry(3)
-                  .setRetryTimeout(20 * 1000)
-                  .build();
+                .setRequestInterval(60 * 1000)
+                .setRequestFastInterval(60 * 1000)
+                .setRequestDistance(100)
+                .setIsRequestDistance(true)
+                .setCachedExpiredTime(0)
+                .setRetryTimeout(20 * 1000)
+                .setMaxRetry(3)
+                .build();
         manager.setOnLocationUpdateListener(this);
-        manager.isLocationServiceCanUse();
+        manager.start();
+    }
+    
+     @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.e(TAG, "onStartCommand()");
+
+        if (manager.isConnect()) {
+            // show fix activity, if location settings not satisfied
+            manager.checkLocationProviderPrompt();
+        }
+
+        return START_STICKY;
     }
 
     @Override
@@ -167,8 +184,10 @@ public class SampleReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (intent.getAction().matches(LocationManager.PROVIDERS_CHANGED_ACTION)) {
 			Log.e(TAG, "onReceive was call because location providers have changes");
-			FusedLocationManager manager = new FusedLocationManager.Builder(context).build();
-			manager.isLocationServiceCanUse();
+			// start your service and call checkLocationProviderPrompt()
+            // for start fix dialog, if provide change is not meet
+            // fused location api requirement.
+            context.startService(new Intent(context, SampleService.class));
         }
     }
 }
